@@ -9,8 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnitEconomicsRouteImport } from './routes/unit-economics'
+import { Route as ScenarioRouteImport } from './routes/scenario'
+import { Route as RunwayRouteImport } from './routes/runway'
+import { Route as ExportRouteImport } from './routes/export'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UnitEconomicsRoute = UnitEconomicsRouteImport.update({
+  id: '/unit-economics',
+  path: '/unit-economics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScenarioRoute = ScenarioRouteImport.update({
+  id: '/scenario',
+  path: '/scenario',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RunwayRoute = RunwayRouteImport.update({
+  id: '/runway',
+  path: '/runway',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExportRoute = ExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +43,72 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/export': typeof ExportRoute
+  '/runway': typeof RunwayRoute
+  '/scenario': typeof ScenarioRoute
+  '/unit-economics': typeof UnitEconomicsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/export': typeof ExportRoute
+  '/runway': typeof RunwayRoute
+  '/scenario': typeof ScenarioRoute
+  '/unit-economics': typeof UnitEconomicsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/export': typeof ExportRoute
+  '/runway': typeof RunwayRoute
+  '/scenario': typeof ScenarioRoute
+  '/unit-economics': typeof UnitEconomicsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/export' | '/runway' | '/scenario' | '/unit-economics'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/export' | '/runway' | '/scenario' | '/unit-economics'
+  id: '__root__' | '/' | '/export' | '/runway' | '/scenario' | '/unit-economics'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ExportRoute: typeof ExportRoute
+  RunwayRoute: typeof RunwayRoute
+  ScenarioRoute: typeof ScenarioRoute
+  UnitEconomicsRoute: typeof UnitEconomicsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unit-economics': {
+      id: '/unit-economics'
+      path: '/unit-economics'
+      fullPath: '/unit-economics'
+      preLoaderRoute: typeof UnitEconomicsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scenario': {
+      id: '/scenario'
+      path: '/scenario'
+      fullPath: '/scenario'
+      preLoaderRoute: typeof ScenarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/runway': {
+      id: '/runway'
+      path: '/runway'
+      fullPath: '/runway'
+      preLoaderRoute: typeof RunwayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/export': {
+      id: '/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof ExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,17 +121,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ExportRoute: ExportRoute,
+  RunwayRoute: RunwayRoute,
+  ScenarioRoute: ScenarioRoute,
+  UnitEconomicsRoute: UnitEconomicsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
