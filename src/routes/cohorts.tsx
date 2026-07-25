@@ -153,7 +153,7 @@ function CohortsPage() {
         <SummaryCard
           icon={<DollarSign className="h-4 w-4" />}
           label="6-Month LTV / Customer"
-          value={formatCurrency(summary.avgLtv)}
+          value={fmtCurrency(summary.avgLtv)}
           tone="good"
         />
         <SummaryCard
