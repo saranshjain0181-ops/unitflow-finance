@@ -168,6 +168,8 @@ function Page() {
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<{
     fileName: string;
+    workbook: XLSX.WorkBook;
+    sheetName: string;
     rows: ParsedRow[];
     mapping: (keyof PnL | typeof IGNORE)[];
   } | null>(null);
@@ -189,21 +191,38 @@ function Page() {
   const update = (k: keyof PnL) => (v: string) =>
     setPnl((p) => ({ ...p, [k]: parseFloat(v) || 0 }));
 
-  const handleFile = useCallback(async (file: File) => {
-    try {
-      const rows = await parseFile(file);
+  const selectSheet = useCallback(
+    (workbook: XLSX.WorkBook, fileName: string, sheetName: string) => {
+      const rows = parseSheet(workbook, sheetName);
       if (!rows.length) {
-        toast.error("No rows found", { description: "The file appears empty." });
-        return;
+        toast.error("No rows found on this sheet", {
+          description: `"${sheetName}" appears empty.`,
+        });
       }
       const mapping = rows.map((r) => guessField(r.label));
-      setPreview({ fileName: file.name, rows, mapping });
-    } catch (err) {
-      toast.error("Failed to parse file", {
-        description: err instanceof Error ? err.message : "Unsupported format.",
-      });
-    }
-  }, []);
+      setPreview({ fileName, workbook, sheetName, rows, mapping });
+    },
+    [],
+  );
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      try {
+        const workbook = await readWorkbook(file);
+        if (!workbook.SheetNames.length) {
+          toast.error("No sheets found in file");
+          return;
+        }
+        selectSheet(workbook, file.name, workbook.SheetNames[0]);
+      } catch (err) {
+        toast.error("Failed to parse file", {
+          description: err instanceof Error ? err.message : "Unsupported format.",
+        });
+      }
+    },
+    [selectSheet],
+  );
+
 
   const onDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
