@@ -128,20 +128,20 @@ function parseAmount(v: unknown): number {
   return neg ? -Math.abs(n) : n;
 }
 
-async function parseFile(file: File): Promise<ParsedRow[]> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
+function parseSheet(wb: XLSX.WorkBook, sheetName: string): ParsedRow[] {
+  const sheet = wb.Sheets[sheetName];
+  if (!sheet) return [];
   const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false });
   const rows: ParsedRow[] = [];
-  // Skip header if it looks like one
-  const start = aoa.length && typeof aoa[0]?.[0] === "string" && /item|label|account|name/i.test(String(aoa[0][0])) ? 1 : 0;
+  const start =
+    aoa.length && typeof aoa[0]?.[0] === "string" && /item|label|account|name/i.test(String(aoa[0][0]))
+      ? 1
+      : 0;
   for (let i = start; i < aoa.length; i++) {
     const row = aoa[i];
     if (!row || row.length === 0) continue;
     const label = String(row[0] ?? "").trim();
     if (!label) continue;
-    // find first numeric-looking cell
     let amount = 0;
     let raw = "";
     for (let j = 1; j < row.length; j++) {
@@ -155,6 +155,12 @@ async function parseFile(file: File): Promise<ParsedRow[]> {
   }
   return rows;
 }
+
+async function readWorkbook(file: File): Promise<XLSX.WorkBook> {
+  const buf = await file.arrayBuffer();
+  return XLSX.read(buf, { type: "array" });
+}
+
 
 function Page() {
   const [manual, setManual] = useState(true);
