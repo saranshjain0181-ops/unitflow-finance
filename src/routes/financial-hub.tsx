@@ -474,16 +474,48 @@ function Page() {
           </DialogHeader>
           {preview && (
             <>
-              <div className="flex items-center gap-3 text-xs">
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  {mappedCount} mapped
-                </Badge>
-                <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
-                  <XCircle className="h-3 w-3 mr-1" />
-                  {preview.rows.length - mappedCount} ignored
-                </Badge>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {preview.workbook.SheetNames.length > 1 ? (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">Worksheet</Label>
+                    <Select
+                      value={preview.sheetName}
+                      onValueChange={(v) =>
+                        selectSheet(preview.workbook, preview.fileName, v)
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[220px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {preview.workbook.SheetNames.map((n) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {preview.workbook.SheetNames.length} sheets
+                    </Badge>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    Sheet: <span className="font-medium text-foreground">{preview.sheetName}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 text-xs">
+                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    {mappedCount} mapped
+                  </Badge>
+                  <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    {preview.rows.length - mappedCount} ignored
+                  </Badge>
+                </div>
               </div>
+
               <div className="max-h-[420px] overflow-y-auto border rounded-md">
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10">
