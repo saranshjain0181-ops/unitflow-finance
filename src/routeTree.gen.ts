@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnitEconomicsRouteImport } from './routes/unit-economics'
 import { Route as ScenarioRouteImport } from './routes/scenario'
 import { Route as RunwayRouteImport } from './routes/runway'
+import { Route as FinancialHubRouteImport } from './routes/financial-hub'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -30,6 +31,11 @@ const RunwayRoute = RunwayRouteImport.update({
   path: '/runway',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinancialHubRoute = FinancialHubRouteImport.update({
+  id: '/financial-hub',
+  path: '/financial-hub',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExportRoute = ExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -44,6 +50,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/export': typeof ExportRoute
+  '/financial-hub': typeof FinancialHubRoute
   '/runway': typeof RunwayRoute
   '/scenario': typeof ScenarioRoute
   '/unit-economics': typeof UnitEconomicsRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/export': typeof ExportRoute
+  '/financial-hub': typeof FinancialHubRoute
   '/runway': typeof RunwayRoute
   '/scenario': typeof ScenarioRoute
   '/unit-economics': typeof UnitEconomicsRoute
@@ -59,21 +67,42 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/export': typeof ExportRoute
+  '/financial-hub': typeof FinancialHubRoute
   '/runway': typeof RunwayRoute
   '/scenario': typeof ScenarioRoute
   '/unit-economics': typeof UnitEconomicsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/export' | '/runway' | '/scenario' | '/unit-economics'
+  fullPaths:
+    | '/'
+    | '/export'
+    | '/financial-hub'
+    | '/runway'
+    | '/scenario'
+    | '/unit-economics'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/export' | '/runway' | '/scenario' | '/unit-economics'
-  id: '__root__' | '/' | '/export' | '/runway' | '/scenario' | '/unit-economics'
+  to:
+    | '/'
+    | '/export'
+    | '/financial-hub'
+    | '/runway'
+    | '/scenario'
+    | '/unit-economics'
+  id:
+    | '__root__'
+    | '/'
+    | '/export'
+    | '/financial-hub'
+    | '/runway'
+    | '/scenario'
+    | '/unit-economics'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExportRoute: typeof ExportRoute
+  FinancialHubRoute: typeof FinancialHubRoute
   RunwayRoute: typeof RunwayRoute
   ScenarioRoute: typeof ScenarioRoute
   UnitEconomicsRoute: typeof UnitEconomicsRoute
@@ -102,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RunwayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/financial-hub': {
+      id: '/financial-hub'
+      path: '/financial-hub'
+      fullPath: '/financial-hub'
+      preLoaderRoute: typeof FinancialHubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/export': {
       id: '/export'
       path: '/export'
@@ -122,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExportRoute: ExportRoute,
+  FinancialHubRoute: FinancialHubRoute,
   RunwayRoute: RunwayRoute,
   ScenarioRoute: ScenarioRoute,
   UnitEconomicsRoute: UnitEconomicsRoute,
@@ -129,13 +166,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
