@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, useCallback, type DragEvent } from "react";
+import { useMemo, useState, useCallback, useRef, type DragEvent } from "react";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UploadCloud, Download, FileSpreadsheet } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { UploadCloud, Download, FileSpreadsheet, CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -48,6 +64,19 @@ type PnL = {
   interestTax: number;
 };
 
+const PNL_FIELDS: { key: keyof PnL; label: string }[] = [
+  { key: "grossSales", label: "Gross Sales" },
+  { key: "discounts", label: "Discounts & Returns" },
+  { key: "cogs", label: "COGS" },
+  { key: "sm", label: "Sales & Marketing" },
+  { key: "rd", label: "R&D" },
+  { key: "ga", label: "G&A" },
+  { key: "da", label: "Depreciation & Amortization" },
+  { key: "interestTax", label: "Interest & Taxes" },
+];
+
+const IGNORE = "__ignore__";
+
 const DEFAULT_PNL: PnL = {
   grossSales: 1250000,
   discounts: 85000,
@@ -68,10 +97,75 @@ const usd = (n: number) =>
 
 const pct = (n: number) => (isFinite(n) ? `${n.toFixed(1)}%` : "—");
 
+type ParsedRow = { label: string; amount: number; raw: string };
+
+// Fuzzy match a text label to a PnL field key.
+function guessField(label: string): keyof PnL | typeof IGNORE {
+  const l = label.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const rules: [RegExp, keyof PnL][] = [
+    [/gross(sales|revenue)|totalrevenue|revenue$/, "grossSales"],
+    [/discount|return|refund|allowance/, "discounts"],
+    [/cogs|costofgoods|costofsales|costofrevenue/, "cogs"],
+    [/salesmarketing|s&m|marketing|sales$/, "sm"],
+    [/r&d|research|rnd/, "rd"],
+    [/g&a|generaladmin|admin|overhead/, "ga"],
+    [/depreciation|amortization|d&a/, "da"],
+    [/interest|tax/, "interestTax"],
+  ];
+  for (const [re, key] of rules) if (re.test(l)) return key;
+  return IGNORE;
+}
+
+function parseAmount(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (v == null) return 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  const neg = /^\(.*\)$/.test(s);
+  const cleaned = s.replace(/[(),$\s]/g, "").replace(/[^0-9.\-]/g, "");
+  const n = parseFloat(cleaned);
+  if (!isFinite(n)) return 0;
+  return neg ? -Math.abs(n) : n;
+}
+
+async function parseFile(file: File): Promise<ParsedRow[]> {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false });
+  const rows: ParsedRow[] = [];
+  // Skip header if it looks like one
+  const start = aoa.length && typeof aoa[0]?.[0] === "string" && /item|label|account|name/i.test(String(aoa[0][0])) ? 1 : 0;
+  for (let i = start; i < aoa.length; i++) {
+    const row = aoa[i];
+    if (!row || row.length === 0) continue;
+    const label = String(row[0] ?? "").trim();
+    if (!label) continue;
+    // find first numeric-looking cell
+    let amount = 0;
+    let raw = "";
+    for (let j = 1; j < row.length; j++) {
+      if (row[j] != null && String(row[j]).trim() !== "") {
+        amount = parseAmount(row[j]);
+        raw = String(row[j]);
+        break;
+      }
+    }
+    rows.push({ label, amount, raw });
+  }
+  return rows;
+}
+
 function Page() {
   const [manual, setManual] = useState(true);
   const [pnl, setPnl] = useState<PnL>(DEFAULT_PNL);
   const [dragOver, setDragOver] = useState(false);
+  const [preview, setPreview] = useState<{
+    fileName: string;
+    rows: ParsedRow[];
+    mapping: (keyof PnL | typeof IGNORE)[];
+  } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const m = useMemo(() => {
     const netSales = pnl.grossSales - pnl.discounts;
@@ -89,12 +183,57 @@ function Page() {
   const update = (k: keyof PnL) => (v: string) =>
     setPnl((p) => ({ ...p, [k]: parseFloat(v) || 0 }));
 
-  const onDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) toast.success(`Received ${file.name}`, { description: "Parsing coming soon." });
+  const handleFile = useCallback(async (file: File) => {
+    try {
+      const rows = await parseFile(file);
+      if (!rows.length) {
+        toast.error("No rows found", { description: "The file appears empty." });
+        return;
+      }
+      const mapping = rows.map((r) => guessField(r.label));
+      setPreview({ fileName: file.name, rows, mapping });
+    } catch (err) {
+      toast.error("Failed to parse file", {
+        description: err instanceof Error ? err.message : "Unsupported format.",
+      });
+    }
   }, []);
+
+  const onDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFile(file);
+    },
+    [handleFile],
+  );
+
+  const confirmImport = () => {
+    if (!preview) return;
+    const next: PnL = { ...pnl };
+    // zero out any mapped field first so multi-row totals sum correctly
+    const touched = new Set<keyof PnL>();
+    preview.mapping.forEach((k) => {
+      if (k !== IGNORE) touched.add(k);
+    });
+    touched.forEach((k) => {
+      next[k] = 0;
+    });
+    let imported = 0;
+    preview.rows.forEach((r, i) => {
+      const k = preview.mapping[i];
+      if (k === IGNORE) return;
+      next[k] += Math.abs(r.amount);
+      imported++;
+    });
+    setPnl(next);
+    setManual(true);
+    setPreview(null);
+    toast.success(`Imported ${imported} rows`, {
+      description: `From ${preview.fileName}`,
+    });
+  };
 
   const downloadTemplate = () => {
     const csv =
@@ -107,6 +246,8 @@ function Page() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const mappedCount = preview?.mapping.filter((k) => k !== IGNORE).length ?? 0;
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1400px] mx-auto">
@@ -127,18 +268,30 @@ function Page() {
             }}
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
+            onClick={() => inputRef.current?.click()}
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+              "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
               dragOver
                 ? "border-primary bg-primary/5"
                 : "border-border hover:border-primary/50 bg-muted/30",
             )}
           >
             <UploadCloud className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm font-medium">Drag & drop CSV or Excel file here</p>
+            <p className="text-sm font-medium">Drag &amp; drop CSV or Excel file here</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Supports .csv, .xlsx — parsing will be enabled soon
+              Supports .csv, .xlsx, .xls — click to browse
             </p>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+                e.target.value = "";
+              }}
+            />
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -283,6 +436,91 @@ function Page() {
           </div>
         </div>
       )}
+
+      {/* Preview Dialog */}
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Preview Import</DialogTitle>
+            <DialogDescription>
+              {preview?.fileName} — review parsed rows and mapping before importing.
+              We auto-matched labels to your P&amp;L structure; adjust as needed.
+            </DialogDescription>
+          </DialogHeader>
+          {preview && (
+            <>
+              <div className="flex items-center gap-3 text-xs">
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {mappedCount} mapped
+                </Badge>
+                <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  {preview.rows.length - mappedCount} ignored
+                </Badge>
+              </div>
+              <div className="max-h-[420px] overflow-y-auto border rounded-md">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead>Source Label</TableHead>
+                      <TableHead className="w-[140px] text-right">Amount</TableHead>
+                      <TableHead className="w-[210px]">Map To</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.rows.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-sm">{r.label}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">
+                          {usd(r.amount)}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={preview.mapping[i]}
+                            onValueChange={(v) =>
+                              setPreview((p) =>
+                                p
+                                  ? {
+                                      ...p,
+                                      mapping: p.mapping.map((x, idx) =>
+                                        idx === i ? (v as keyof PnL | typeof IGNORE) : x,
+                                      ),
+                                    }
+                                  : p,
+                              )
+                            }
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={IGNORE}>Ignore</SelectItem>
+                              {PNL_FIELDS.map((f) => (
+                                <SelectItem key={f.key} value={f.key}>
+                                  {f.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreview(null)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmImport} disabled={mappedCount === 0}>
+              Import {mappedCount} rows
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
