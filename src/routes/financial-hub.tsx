@@ -128,20 +128,20 @@ function parseAmount(v: unknown): number {
   return neg ? -Math.abs(n) : n;
 }
 
-async function parseFile(file: File): Promise<ParsedRow[]> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
+function parseSheet(wb: XLSX.WorkBook, sheetName: string): ParsedRow[] {
+  const sheet = wb.Sheets[sheetName];
+  if (!sheet) return [];
   const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false });
   const rows: ParsedRow[] = [];
-  // Skip header if it looks like one
-  const start = aoa.length && typeof aoa[0]?.[0] === "string" && /item|label|account|name/i.test(String(aoa[0][0])) ? 1 : 0;
+  const start =
+    aoa.length && typeof aoa[0]?.[0] === "string" && /item|label|account|name/i.test(String(aoa[0][0]))
+      ? 1
+      : 0;
   for (let i = start; i < aoa.length; i++) {
     const row = aoa[i];
     if (!row || row.length === 0) continue;
     const label = String(row[0] ?? "").trim();
     if (!label) continue;
-    // find first numeric-looking cell
     let amount = 0;
     let raw = "";
     for (let j = 1; j < row.length; j++) {
@@ -156,12 +156,20 @@ async function parseFile(file: File): Promise<ParsedRow[]> {
   return rows;
 }
 
+async function readWorkbook(file: File): Promise<XLSX.WorkBook> {
+  const buf = await file.arrayBuffer();
+  return XLSX.read(buf, { type: "array" });
+}
+
+
 function Page() {
   const [manual, setManual] = useState(true);
   const [pnl, setPnl] = useState<PnL>(DEFAULT_PNL);
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreview] = useState<{
     fileName: string;
+    workbook: XLSX.WorkBook;
+    sheetName: string;
     rows: ParsedRow[];
     mapping: (keyof PnL | typeof IGNORE)[];
   } | null>(null);
@@ -183,21 +191,38 @@ function Page() {
   const update = (k: keyof PnL) => (v: string) =>
     setPnl((p) => ({ ...p, [k]: parseFloat(v) || 0 }));
 
-  const handleFile = useCallback(async (file: File) => {
-    try {
-      const rows = await parseFile(file);
+  const selectSheet = useCallback(
+    (workbook: XLSX.WorkBook, fileName: string, sheetName: string) => {
+      const rows = parseSheet(workbook, sheetName);
       if (!rows.length) {
-        toast.error("No rows found", { description: "The file appears empty." });
-        return;
+        toast.error("No rows found on this sheet", {
+          description: `"${sheetName}" appears empty.`,
+        });
       }
       const mapping = rows.map((r) => guessField(r.label));
-      setPreview({ fileName: file.name, rows, mapping });
-    } catch (err) {
-      toast.error("Failed to parse file", {
-        description: err instanceof Error ? err.message : "Unsupported format.",
-      });
-    }
-  }, []);
+      setPreview({ fileName, workbook, sheetName, rows, mapping });
+    },
+    [],
+  );
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      try {
+        const workbook = await readWorkbook(file);
+        if (!workbook.SheetNames.length) {
+          toast.error("No sheets found in file");
+          return;
+        }
+        selectSheet(workbook, file.name, workbook.SheetNames[0]);
+      } catch (err) {
+        toast.error("Failed to parse file", {
+          description: err instanceof Error ? err.message : "Unsupported format.",
+        });
+      }
+    },
+    [selectSheet],
+  );
+
 
   const onDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
@@ -449,16 +474,48 @@ function Page() {
           </DialogHeader>
           {preview && (
             <>
-              <div className="flex items-center gap-3 text-xs">
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  {mappedCount} mapped
-                </Badge>
-                <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
-                  <XCircle className="h-3 w-3 mr-1" />
-                  {preview.rows.length - mappedCount} ignored
-                </Badge>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {preview.workbook.SheetNames.length > 1 ? (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">Worksheet</Label>
+                    <Select
+                      value={preview.sheetName}
+                      onValueChange={(v) =>
+                        selectSheet(preview.workbook, preview.fileName, v)
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[220px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {preview.workbook.SheetNames.map((n) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {preview.workbook.SheetNames.length} sheets
+                    </Badge>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    Sheet: <span className="font-medium text-foreground">{preview.sheetName}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 text-xs">
+                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    {mappedCount} mapped
+                  </Badge>
+                  <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    {preview.rows.length - mappedCount} ignored
+                  </Badge>
+                </div>
               </div>
+
               <div className="max-h-[420px] overflow-y-auto border rounded-md">
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10">
