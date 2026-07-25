@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/unitflow";
+import { fmtCurrency } from "@/lib/unitflow";
 import { RotateCcw, TrendingUp, Users, DollarSign } from "lucide-react";
 
 export const Route = createFileRoute("/cohorts")({

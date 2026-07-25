@@ -14,6 +14,7 @@ import { Route as ScenarioRouteImport } from './routes/scenario'
 import { Route as RunwayRouteImport } from './routes/runway'
 import { Route as FinancialHubRouteImport } from './routes/financial-hub'
 import { Route as ExportRouteImport } from './routes/export'
+import { Route as CohortsRouteImport } from './routes/cohorts'
 import { Route as IndexRouteImport } from './routes/index'
 
 const UnitEconomicsRoute = UnitEconomicsRouteImport.update({
@@ -41,6 +42,11 @@ const ExportRoute = ExportRouteImport.update({
   path: '/export',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CohortsRoute = CohortsRouteImport.update({
+  id: '/cohorts',
+  path: '/cohorts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cohorts': typeof CohortsRoute
   '/export': typeof ExportRoute
   '/financial-hub': typeof FinancialHubRoute
   '/runway': typeof RunwayRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cohorts': typeof CohortsRoute
   '/export': typeof ExportRoute
   '/financial-hub': typeof FinancialHubRoute
   '/runway': typeof RunwayRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cohorts': typeof CohortsRoute
   '/export': typeof ExportRoute
   '/financial-hub': typeof FinancialHubRoute
   '/runway': typeof RunwayRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/cohorts'
     | '/export'
     | '/financial-hub'
     | '/runway'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/cohorts'
     | '/export'
     | '/financial-hub'
     | '/runway'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/cohorts'
     | '/export'
     | '/financial-hub'
     | '/runway'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CohortsRoute: typeof CohortsRoute
   ExportRoute: typeof ExportRoute
   FinancialHubRoute: typeof FinancialHubRoute
   RunwayRoute: typeof RunwayRoute
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cohorts': {
+      id: '/cohorts'
+      path: '/cohorts'
+      fullPath: '/cohorts'
+      preLoaderRoute: typeof CohortsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -157,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CohortsRoute: CohortsRoute,
   ExportRoute: ExportRoute,
   FinancialHubRoute: FinancialHubRoute,
   RunwayRoute: RunwayRoute,
