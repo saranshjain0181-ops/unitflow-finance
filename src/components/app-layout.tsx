@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, Gauge, LineChart, Sliders, Download, Moon, Sun, Database } from "lucide-react";
+import { Activity, Gauge, LineChart, Sliders, Download, Moon, Sun, Database, Grid3x3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ const nav = [
   { to: "/runway", label: "Runway & Burn", icon: LineChart },
   { to: "/scenario", label: "Scenario Planner", icon: Sliders },
   { to: "/financial-hub", label: "Financial Hub", icon: Database },
+  { to: "/cohorts", label: "Cohort Studio", icon: Grid3x3 },
   { to: "/export", label: "Export", icon: Download },
 ] as const;
 
